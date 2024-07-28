@@ -13,6 +13,7 @@ DISCONNECT_MSG = "/leave"
 DIRECTORY = "directory"
 
 client_registered = {}
+registered = {}
 uploaded_files = set(os.listdir(DIRECTORY))
 
         
@@ -61,11 +62,13 @@ def handle_client(conn, addr):
                         try:
                             # Split message to extract username
                             _, username = msg.split(maxsplit=1)
-                            if username in client_registered:
-                                print(client_registered)
+                            if username in registered:
                                 response = "Username already taken."
                             else:
                                 client_registered[conn] = username
+
+                                #since nagkabaliktad, for verifiability lang ito (dont use for others)
+                                registered[username] = conn
                                 response = "Registration successful."
 
                         except ValueError:
@@ -95,8 +98,6 @@ def handle_client(conn, addr):
                                 print(f"[{addr}] User {client_registered[conn]} File {filename} moved to directory.")
                                 response = f"{client_registered[conn]} <{timestamp}>: File '{filename}' uploaded successfully"
                                 broadcast(response.encode(FORMAT),client_registered)
-
-                                #response = f"File {filename} copied to {DIRECTORY} successfully."
                                 uploaded_files.add(filename)
 
                             else:
