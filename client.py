@@ -47,7 +47,6 @@ def receive_messages(client):
             if msg == "help":
                 for command in commands:
                     print(f"{command}")
-
             else:
                 print(f"[SERVER] {msg}")
         except Exception as e:
@@ -81,8 +80,8 @@ def main():
                 if msg == DISCONNECT_MSG:
                     connected = False
 
-        except socket.error as e:
-            print(f"[ERROR] Socket error: {e}")
+        except (ConnectionAbortedError, ConnectionResetError):
+            print(f"[ERROR] Connection with server was aborted or reset.")
 
         finally:
             client.close()

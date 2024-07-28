@@ -44,20 +44,15 @@ def handle_client(conn, addr):
                 if not msg:
                     continue
 
-                #disconnect
-                if msg == DISCONNECT_MSG:
-                    print(f"[{conn}] Disconnected.")
-                    connected = False
-
                 #user asking for help
-                elif msg.startswith("/?"):
+                if msg.startswith("/?"):
                     conn.sendall(("help").encode(FORMAT))
 
                 #user registration
                 elif msg.startswith("/register"):
                     if client_registered[conn] is not None:
-                        response = "You have already registered."    
-
+                        response = "You have already registered." 
+                        conn.sendall(response.encode(FORMAT))
                     else: 
                         try:
                             # Split message to extract username
@@ -66,15 +61,17 @@ def handle_client(conn, addr):
                                 response = "Username already taken."
                             else:
                                 client_registered[conn] = username
-
                                 #since nagkabaliktad, for verifiability lang ito (dont use for others)
                                 registered[username] = conn
-                                response = "Registration successful."
+                                response = f"{username} has entered the server."
+                                broadcast(response.encode(FORMAT),client_registered)
 
                         except ValueError:
-                            response = "Invalid registration syntax. Use: /register <handle>"
-                            
-                    conn.sendall(response.encode(FORMAT))
+                            response = "Invalid syntax. Use: /register <handle>"
+                            conn.sendall(response.encode(FORMAT))
+                        except Exception as e:
+                            error_message = f"Unexpected error: {e}"
+                            print(error_message)
 
                 #user storing file
                 elif msg.startswith("/store"):
@@ -105,14 +102,13 @@ def handle_client(conn, addr):
                                 conn.sendall(response.encode(FORMAT))
 
                         except ValueError as ve:
-                            error_message = f"Error: {ve}"
+                            error_message = f"Invalid syntax. Use: /store <filename>"
                             print(error_message)
                             conn.sendall(error_message.encode(FORMAT))
 
                         except Exception as e:
                             error_message = f"Unexpected error: {e}"
                             print(error_message)
-                            conn.sendall(error_message.encode(FORMAT))
 
                 #user asks for directory
                 elif msg == ("/dir"):
@@ -126,15 +122,24 @@ def handle_client(conn, addr):
                             conn.sendall(response.encode(FORMAT))
 
                         else:
-                            response = "Current files inside the directory:\n" 
-                            for filename in uploaded_files:
-                                try:
-                                    print(filename)
-                                    response += filename + "\n"
-                                except Exception as e:
-                                    print(f"[ERROR] Failed to send filename {filename}: {e}")
-                                    break
-                            conn.sendall(response.encode(FORMAT))
+                            try:
+                                response = "Current files inside the directory:\n" 
+                                for filename in uploaded_files:
+                                    try:
+                                        print(filename)
+                                        response += filename + "\n"
+                                    except Exception as e:
+                                        print(f"[ERROR] Failed to send filename {filename}: {e}")
+                                        break
+                                conn.sendall(response.encode(FORMAT))
+                            except ValueError as ve:
+                                error_message = f"Invalid syntax. Use: /dir"
+                                print(error_message)
+                                conn.sendall(error_message.encode(FORMAT))
+
+                            except Exception as e:
+                                error_message = f"Unexpected error: {e}"
+                                print(error_message)
 
                 #user getting file
                 elif msg.startswith("/get"):
@@ -161,14 +166,13 @@ def handle_client(conn, addr):
                             conn.sendall(response.encode(FORMAT))
 
                         except ValueError as ve:
-                            error_message = f"Error: {ve}"
+                            error_message = f"Invalid syntax. Use: /get <filename>"
                             print(error_message)
                             conn.sendall(error_message.encode(FORMAT))
 
                         except Exception as e:
                             error_message = f"Unexpected error: {e}"
                             print(error_message)
-                            conn.sendall(error_message.encode(FORMAT))
 
                 #user messaging another user
                 elif msg.startswith("/msg"):
@@ -177,26 +181,38 @@ def handle_client(conn, addr):
                         conn.sendall(response.encode(FORMAT))
 
                     else:
-                        _, recipient, message = msg.split(" ", 2)
-                        recipient_conn = None
-                        
-                        # Find the connection object of the recipient
-                        for c, user in client_registered.items():
-                            if user == recipient:
-                                recipient_conn = c #find the recipient username
-                                break
-                        
-                        if recipient_conn != conn:
-                            response = f"{client_registered[conn]}: {message}"
-                            recipient_conn.sendall(response.encode(FORMAT))
-                            response = f"Message to {recipient} sent successfully."
-                            conn.sendall(response.encode(FORMAT))
-                        elif recipient_conn == conn:
-                            response = f"Message cannot be sent to yourself"
-                            conn.sendall(response.encode(FORMAT))
-                        else:
-                            response = "Recipient not found."
-                            conn.sendall(response.encode(FORMAT))
+                        try:
+                            _, recipient, message = msg.split(maxsplit = 2)
+                            recipient_conn = None
+                            
+                            # Find the connection object of the recipient
+                            for c, user in client_registered.items():
+                                if user == recipient:
+                                    recipient_conn = c #find the recipient username
+                                    break
+                                else:
+                                    response = "Recipient not found."
+                                    conn.sendall(response.encode(FORMAT))
+                            
+                            if recipient_conn != conn:
+                                response = f"{client_registered[conn]}: {message}"
+                                recipient_conn.sendall(response.encode(FORMAT))
+                                response = f"Message to {recipient} sent successfully."
+                                conn.sendall(response.encode(FORMAT))
+
+                            elif recipient_conn == conn:
+                                response = f"Message cannot be sent to yourself"
+                                conn.sendall(response.encode(FORMAT))
+
+                        except ValueError as ve:
+                            error_message = f"Invalid syntax. Use: /msg <username> <message>"
+                            print(error_message)
+                            conn.sendall(error_message.encode(FORMAT))
+
+                        except Exception as e:
+                            error_message = f"Unexpected error: {e}"
+                            print(error_message)
+
 
                 #user sending message to all clients
                 elif msg.startswith("/broadcast"):
@@ -205,9 +221,18 @@ def handle_client(conn, addr):
                         conn.sendall(response.encode(FORMAT))
                     
                     else:
-                        _, message = msg.split(maxsplit=1)
-                        response = f"[BROADCAST] {client_registered[conn]}: {message}"
-                        broadcast(response.encode(FORMAT),client_registered)
+                        try:
+                            _, message = msg.split(maxsplit=1)
+                            response = f"[BROADCAST] {client_registered[conn]}: {message}"
+                            broadcast(response.encode(FORMAT),client_registered)
+                        except ValueError as ve:
+                            error_message = f"Invalid syntax. Use: /broadcast <message>"
+                            print(error_message)
+                            conn.sendall(error_message.encode(FORMAT))
+
+                        except Exception as e:
+                            error_message = f"Unexpected error: {e}"
+                            print(error_message)
 
                 # user trying to join again
                 elif msg.startswith("/join"):
