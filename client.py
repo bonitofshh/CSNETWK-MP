@@ -16,6 +16,8 @@ commands = ["/join <server_ip_add> <port> - connect to the server application",
             "/store <filename> - send file to server",
             "/dir - request directory file list from a server",
             "/get <filename> - fetch a file from a server",
+            "/msg <username> <message> - privately message an online user",
+            "/broadcast <message> - broadcast message to all online users",
             "/? - request command help to output all Input Syntax commands for references"]
 
 # process the user_input before joining
@@ -53,13 +55,13 @@ def receive_messages(client):
             break
 
 def main():
+
     # loops until user enters /join syntax
     while True: 
         msg = input("> ")
         syntax = process_syntax(msg)
         if syntax == 1:
             break
-
 
     # will access once broken from while loop
     if process_syntax(msg) == 1:
@@ -74,7 +76,6 @@ def main():
             connected = True
             while connected:
                 msg = input("> ")
-
                 #sends the message to client
                 client.send(msg.encode(FORMAT))
                 if msg == DISCONNECT_MSG:
