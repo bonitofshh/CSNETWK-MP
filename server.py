@@ -225,6 +225,7 @@ def handle_client(conn, addr):
                             _, message = msg.split(maxsplit=1)
                             response = f"[BROADCAST] {client_registered[conn]}: {message}"
                             broadcast(response.encode(FORMAT),client_registered)
+                            
                         except ValueError as ve:
                             error_message = f"Invalid syntax. Use: /broadcast <message>"
                             print(error_message)
@@ -275,3 +276,22 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+'''
+Imported libraries:
+
+threading - Allows multiple threads of execution on a Python program. Used so that a client can receive messages without waiting
+for a command input.
+
+shutil - Allows us to perform high-level operations on single and/or multiple files. Features include copying.
+os - Allows us to interact with the operating system. Useful for managing directories.
+
+References:
+
+Python | Threading | Codecademy. (2022). Python | Threading | Codecademy. Codecademy. https://www.codecademy.com/resources/docs/python/threading
+
+shutil — High-level file operations. (2024). Python Documentation. https://docs.python.org/3/library/shutil.html
+
+W3Schools.com. (2024). W3schools.com. https://www.w3schools.com/python/module_os.asp
+
+'''
