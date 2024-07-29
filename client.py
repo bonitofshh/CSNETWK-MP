@@ -8,7 +8,7 @@ SIZE = 1024
 FORMAT = "utf-8"
 DISCONNECT_MSG = "/leave"   
 
-INPUTSYNTAX = ["/join", "/leave", "/register", "/store", "/dir", "/get", "/?"]
+INPUTSYNTAX = ["/join", "/leave", "/register", "/store", "/dir", "/get", "/msg", "/broadcast", "/?"]
 
 commands = ["/join <server_ip_add> <port> - connect to the server application", 
             "/leave - disconnect to the server application", 
