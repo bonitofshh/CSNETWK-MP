@@ -1,5 +1,8 @@
 import socket
 import threading
+import GUI
+import time
+import os
 
 IP = "127.0.0.1"
 PORT = 12345
@@ -12,12 +15,13 @@ INPUTSYNTAX = ["/join", "/leave", "/register", "/store", "/dir", "/get", "/msg",
 
 commands = ["/join <server_ip_add> <port> - connect to the server application", 
             "/leave - disconnect to the server application", 
-            "/register <handle> = register a unique handle or alias", 
+            "/register <handle> - register a unique handle or alias", 
             "/store <filename> - send file to server",
             "/dir - request directory file list from a server",
             "/get <filename> - fetch a file from a server",
             "/msg <username> <message> - privately message an online user",
             "/broadcast <message> - broadcast message to all online users",
+            "/allusers - view all online users in the server",
             "/? - request command help to output all Input Syntax commands for references"]
 
 # process the user_input before joining
@@ -44,17 +48,17 @@ def receive_messages(client):
     while True:
         try:
             msg = client.recv(SIZE).decode(FORMAT)
-            if msg == "help":
-                for command in commands:
-                    print(f"{command}")
+            if msg == "pass":
+                GUI.welcomeHeader()
             else:
                 print(f"[SERVER] {msg}")
-        except Exception as e:
-            print(f"[ERROR] Failed to receive message: {e}")
+        except Exception:
+            print("[DISCONNECTED] Connection with server was aborted or reset.")
             break
 
 def main():
-
+    GUI.welcomeHeader()
+    print("Please /join to proceed.  Type /? for more info\n")
     # loops until user enters /join syntax
     while True: 
         msg = input("> ")
@@ -67,7 +71,10 @@ def main():
         try:
             client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client.connect(ADDR)
-            print(f"[CONNECTED] Client connected to server at {IP}:{PORT}")
+            GUI.welcomeHeader()
+            print(f"[CONNECTED] Client connected to server at {IP}:{PORT}. Please wait...")
+            time.sleep(1)
+            GUI.registerHeader()
 
             receive_thread = threading.Thread(target=receive_messages, args=(client,))
             receive_thread.start()
@@ -78,14 +85,15 @@ def main():
                 #sends the message to client
                 client.send(msg.encode(FORMAT))
                 if msg == DISCONNECT_MSG:
+                    GUI.thankyouHeader()
                     connected = False
-
+                    client.close()
+                    print("[DISCONNECTED] Client disconnected.")
+                  
+                    
         except (ConnectionAbortedError, ConnectionResetError):
-            print(f"[ERROR] Connection with server was aborted or reset.")
-
-        finally:
-            client.close()
-            print("[DISCONNECTED] Client disconnected.")    
+            print("[DISCONNECTED] Connection with server was aborted or reset.")
+   
 
 if __name__ == "__main__":
     main()

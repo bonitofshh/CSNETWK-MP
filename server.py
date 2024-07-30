@@ -3,39 +3,49 @@ import threading
 import os
 import shutil
 from datetime import datetime
+import GUI
 
 IP = "127.0.0.1"
 PORT = 12345
 ADDR = (IP, PORT)
 SIZE = 1024
 FORMAT = "utf-8"
-DISCONNECT_MSG = "/leave"
 DIRECTORY = "directory"
 
+commands = ["/join <server_ip_add> <port> - connect to the server application", 
+            "/leave - disconnect to the server application", 
+            "/register <handle> - register a unique handle or alias", 
+            "/store <filename> - send file to server",
+            "/dir - request directory file list from a server",
+            "/get <filename> - fetch a file from a server",
+            "/msg <username> <message> - privately message an online user",
+            "/broadcast <message> - broadcast message to all online users",
+            "/allusers - view all online users in the server",
+            "/? - request command help to output all Input Syntax commands for references"]
+
 client_registered = {}
-registered = {}
 uploaded_files = set(os.listdir(DIRECTORY))
 
+def checkRegistered(conn):
+    if client_registered[conn] is None:
+        response = "You have to register first." 
+        conn.sendall(response.encode(FORMAT))
+    else:
+        return 1
         
-def broadcast(message, curr_client):
-    clients_to_remove = []
+def broadcast(message):
     for client, username in client_registered.items():
-        if client != curr_client:
-            try:
-                client.sendall(message)
-
-            #just in case the user disconnects while sending
-            except Exception as e:
-                print(f"Error sending message to client: {e}") 
-                clients_to_remove.append(username)
-    for username in clients_to_remove:
-        del client_registered[username] 
+        try:
+            client.sendall(message)
+        #just in case the user disconnects while sending
+        except Exception as e:
+            print(f"[ERROR] Error sending message to client: {e}")
+                 
 
 def handle_client(conn, addr):
     print(f"[NEW CONNECTION] {addr} connected.")
     connected = True
     client_registered[conn] = None
-
     try:
         while connected:
             try:
@@ -46,7 +56,10 @@ def handle_client(conn, addr):
 
                 #user asking for help
                 if msg.startswith("/?"):
-                    conn.sendall(("help").encode(FORMAT))
+                    response = "\n--------- COMMAND LIST ----------\n"
+                    for command in commands:
+                        response += f"{command}\n"
+                    conn.sendall(response.encode(FORMAT))
 
                 #user registration
                 elif msg.startswith("/register"):
@@ -57,14 +70,16 @@ def handle_client(conn, addr):
                         try:
                             # Split message to extract username
                             _, username = msg.split(maxsplit=1)
-                            if username in registered:
+                            if username in client_registered.values():
                                 response = "Username already taken."
+                                conn.sendall(response.encode(FORMAT))
                             else:
                                 client_registered[conn] = username
                                 #since nagkabaliktad, for verifiability lang ito (dont use for others)
-                                registered[username] = conn
-                                response = f"{username} has entered the server."
-                                broadcast(response.encode(FORMAT),client_registered)
+                                response = f"[NEW USER] {username} has entered the server."
+
+                                conn.sendall("pass".encode(FORMAT))
+                                broadcast(response.encode(FORMAT))
 
                         except ValueError:
                             response = "Invalid syntax. Use: /register <handle>"
@@ -75,11 +90,7 @@ def handle_client(conn, addr):
 
                 #user storing file
                 elif msg.startswith("/store"):
-                    if client_registered[conn] is None:
-                        response = "You have to register first." 
-                        conn.sendall(response.encode(FORMAT))
-
-                    else:
+                    if checkRegistered(conn) == 1:
                         try:
                             _, filename = msg.split(maxsplit=1)
                             
@@ -92,16 +103,16 @@ def handle_client(conn, addr):
                             if os.path.isfile(source_path):
                                 shutil.copy(source_path, destination_path)
                                 timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                                print(f"[{addr}] User {client_registered[conn]} File {filename} moved to directory.")
+                                print(f"[{addr}] User {client_registered[conn]} <{timestamp}>: File {filename} moved to directory.")
                                 response = f"{client_registered[conn]} <{timestamp}>: File '{filename}' uploaded successfully"
-                                broadcast(response.encode(FORMAT),client_registered)
+                                broadcast(response.encode(FORMAT))
                                 uploaded_files.add(filename)
 
                             else:
                                 response = f"File {filename} not found."
                                 conn.sendall(response.encode(FORMAT))
 
-                        except ValueError as ve:
+                        except ValueError:
                             error_message = f"Invalid syntax. Use: /store <filename>"
                             print(error_message)
                             conn.sendall(error_message.encode(FORMAT))
@@ -112,42 +123,31 @@ def handle_client(conn, addr):
 
                 #user asks for directory
                 elif msg == ("/dir"):
-                    if client_registered[conn] is None:
-                        response = "You have to register first." 
-                        conn.sendall(response.encode(FORMAT))
-
-                    else:
+                    if checkRegistered(conn) == 1:
                         if len(uploaded_files) == 0:
                             response = "No files found in the directory."
                             conn.sendall(response.encode(FORMAT))
 
                         else:
                             try:
-                                response = "Current files inside the directory:\n" 
+                                i = 0
+                                response = "\n--------- CURRENT FILES IN DIRECTORY ----------\n"
                                 for filename in uploaded_files:
+                                    i += 1
                                     try:
                                         print(filename)
-                                        response += filename + "\n"
+                                        response += f"File {i}: {filename}\n"
                                     except Exception as e:
                                         print(f"[ERROR] Failed to send filename {filename}: {e}")
                                         break
-                                conn.sendall(response.encode(FORMAT))
-                            except ValueError as ve:
-                                error_message = f"Invalid syntax. Use: /dir"
-                                print(error_message)
-                                conn.sendall(error_message.encode(FORMAT))
-
                             except Exception as e:
                                 error_message = f"Unexpected error: {e}"
                                 print(error_message)
+                            conn.sendall(response.encode(FORMAT))
 
                 #user getting file
                 elif msg.startswith("/get"):
-                    if client_registered[conn] is None:
-                        response = "You have to register first." 
-                        conn.sendall(response.encode(FORMAT))
-                    
-                    else:
+                    if checkRegistered(conn) == 1:
                         try:
                             _, filename = msg.split(maxsplit=1)
                             source_path = os.path.join(DIRECTORY, filename)
@@ -165,7 +165,7 @@ def handle_client(conn, addr):
                             
                             conn.sendall(response.encode(FORMAT))
 
-                        except ValueError as ve:
+                        except ValueError:
                             error_message = f"Invalid syntax. Use: /get <filename>"
                             print(error_message)
                             conn.sendall(error_message.encode(FORMAT))
@@ -176,11 +176,7 @@ def handle_client(conn, addr):
 
                 #user messaging another user
                 elif msg.startswith("/msg"):
-                    if client_registered[conn] is None:
-                        response = "You have to register first." 
-                        conn.sendall(response.encode(FORMAT))
-
-                    else:
+                    if checkRegistered(conn) == 1:
                         try:
                             _, recipient, message = msg.split(maxsplit = 2)
                             recipient_conn = None
@@ -188,45 +184,41 @@ def handle_client(conn, addr):
                             # Find the connection object of the recipient
                             for c, user in client_registered.items():
                                 if user == recipient:
-                                    recipient_conn = c #find the recipient username
+                                    recipient_conn = c #find the recipient socket
                                     break
                                 else:
                                     response = "Recipient not found."
-                                    conn.sendall(response.encode(FORMAT))
                             
                             if recipient_conn != conn:
                                 response = f"{client_registered[conn]}: {message}"
                                 recipient_conn.sendall(response.encode(FORMAT))
                                 response = f"Message to {recipient} sent successfully."
-                                conn.sendall(response.encode(FORMAT))
 
-                            elif recipient_conn == conn:
+                            elif recipient == conn:
                                 response = f"Message cannot be sent to yourself"
-                                conn.sendall(response.encode(FORMAT))
 
-                        except ValueError as ve:
+                        
+                        except ValueError:
                             error_message = f"Invalid syntax. Use: /msg <username> <message>"
                             print(error_message)
-                            conn.sendall(error_message.encode(FORMAT))
 
                         except Exception as e:
                             error_message = f"Unexpected error: {e}"
+                            del client_registered[recipient_conn]
+                            response = "Recipient not found."
                             print(error_message)
-
+                        conn.sendall(response.encode(FORMAT))
+                      
 
                 #user sending message to all clients
                 elif msg.startswith("/broadcast"):
-                    if client_registered[conn] is None:
-                        response = "You have to register first." 
-                        conn.sendall(response.encode(FORMAT))
-                    
-                    else:
+                    if checkRegistered(conn) == 1:
                         try:
                             _, message = msg.split(maxsplit=1)
                             response = f"[BROADCAST] {client_registered[conn]}: {message}"
-                            broadcast(response.encode(FORMAT),client_registered)
+                            broadcast(response.encode(FORMAT))
                             
-                        except ValueError as ve:
+                        except ValueError:
                             error_message = f"Invalid syntax. Use: /broadcast <message>"
                             print(error_message)
                             conn.sendall(error_message.encode(FORMAT))
@@ -240,13 +232,21 @@ def handle_client(conn, addr):
                     response = "You have already joined a server. Please use other commands."
                     conn.sendall(response.encode(FORMAT))
 
+                elif msg.startswith("/allusers"):
+                    response = "\n--------- CURRENT USERS IN SERVER ----------\n"
+                    i = 0
+                    for socket, users in client_registered.items():
+                        i += 1
+                        response += (f"User {i}: {users}\n")
+                    conn.sendall(response.encode(FORMAT))
+
                 #invalid command
                 else:
                     response = "Command not found"
                     conn.sendall(response.encode(FORMAT))
 
             except (ConnectionAbortedError, ConnectionResetError):
-                print(f"[ERROR] Connection with {addr} was aborted or reset.")
+                print(f"[DISCONNECTED] Connection with {addr} was aborted or reset.")
                 break
 
             except Exception as e:
@@ -254,28 +254,47 @@ def handle_client(conn, addr):
                 break
 
     finally:
-        del client_registered[conn] 
+        response = f"[BROADCAST] {client_registered[conn]} has left the server."
+        broadcast(response.encode(FORMAT))
         conn.close()
-        print(f"[DISCONNECTED] {addr} disconnected.")
+
 
 def main():
-    print(f"[STARTING] Server is starting...")
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    
-    # binds them to the ip and port 
-    server.bind(ADDR)
-    server.listen()
-    print(f"[LISTENING] Server is listening on {IP}:{PORT}")
-
-    while True:
-        # accept clients
-        conn, addr = server.accept()
-        thread = threading.Thread(target=handle_client, args = (conn, addr))
-        thread.start()
-        print(f"[ACTIVE CONNECTIONS] {threading.active_count() - 1}")
+        print(f"[STARTING] Server is starting...")
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        
+        # binds them to the ip and port 
+        server.bind(ADDR)
+        server.listen()
+        server.settimeout(0.5)
+        print(f"[LISTENING] Server is listening on {IP}:{PORT}")
+        connected = True
+        try:
+            while connected:
+                try:
+                    # accept clients
+                    conn, addr = server.accept()
+                    thread = threading.Thread(target=handle_client, args = (conn, addr))
+                    thread.start()
+                    print(f"[ACTIVE CONNECTIONS] {threading.active_count() - 1}")
+                except socket.timeout:
+                    pass
+                except KeyboardInterrupt:
+                    try:
+                        if connected:
+                            connected=False
+                            print("[CLOSING] Server is closing...")
+                            break
+                    except:
+                        pass
+        finally:
+            server.close()
+            print("Server closed.") 
 
 if __name__ == "__main__":
     main()
+    
+
 
 '''
 Imported libraries:
