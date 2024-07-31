@@ -89,11 +89,9 @@ def main():
                     connected = False
                     client.close()
                     print("[DISCONNECTED] Client disconnected.")
-                  
                     
         except (ConnectionAbortedError, ConnectionResetError):
             print("[DISCONNECTED] Connection with server was aborted or reset.")
-   
 
 if __name__ == "__main__":
     main()

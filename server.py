@@ -40,7 +40,6 @@ def broadcast(message):
         #just in case the user disconnects while sending
         except Exception as e:
             print(f"[ERROR] Error sending message to client: {e}")
-                 
 
 def handle_client(conn, addr):
     print(f"[NEW CONNECTION] {addr} connected.")
@@ -208,7 +207,6 @@ def handle_client(conn, addr):
                             response = "Recipient not found."
                             print(error_message)
                         conn.sendall(response.encode(FORMAT))
-                      
 
                 #user sending message to all clients
                 elif msg.startswith("/broadcast"):
@@ -256,8 +254,8 @@ def handle_client(conn, addr):
     finally:
         response = f"[BROADCAST] {client_registered[conn]} has left the server."
         broadcast(response.encode(FORMAT))
+        client_registered.pop(conn, None)
         conn.close()
-
 
 def main():
         print(f"[STARTING] Server is starting...")
@@ -269,6 +267,8 @@ def main():
         server.settimeout(0.5)
         print(f"[LISTENING] Server is listening on {IP}:{PORT}")
         connected = True
+
+        threads = []
         try:
             while connected:
                 try:
@@ -276,20 +276,27 @@ def main():
                     conn, addr = server.accept()
                     thread = threading.Thread(target=handle_client, args = (conn, addr))
                     thread.start()
+                    threads.append(thread)
                     print(f"[ACTIVE CONNECTIONS] {threading.active_count() - 1}")
+
                 except socket.timeout:
                     pass
                 except KeyboardInterrupt:
                     try:
                         if connected:
-                            connected=False
+                            connected = False
                             print("[CLOSING] Server is closing...")
                             break
                     except:
                         pass
         finally:
+            # Signal all client threads to finish
+            for conn in list(client_registered.keys()):
+                conn.close()
+            for thread in threads:
+                thread.join()  # Ensure all threads are finished
             server.close()
-            print("Server closed.") 
+            print("Server closed.")
 
 if __name__ == "__main__":
     main()
@@ -303,6 +310,7 @@ threading - Allows multiple threads of execution on a Python program. Used so th
 for a command input.
 
 shutil - Allows us to perform high-level operations on single and/or multiple files. Features include copying.
+
 os - Allows us to interact with the operating system. Useful for managing directories.
 
 References:
